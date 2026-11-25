@@ -1,7 +1,9 @@
 import re
+from collections import deque
 
-TOKEN = re.compile(r"\d+(?:[.,]\d+)?|[-+*/^()]")
+TOKEN = re.compile(r"\d+(?:[.,]\d+)?|ans\b|[-+*/^()]")
 MAX_VALUE = 1e100
+MAX_LENGTH = 100
 
 
 class CalcError(Exception):
@@ -47,8 +49,9 @@ def power(left, right):
 
 
 class Parser:
-    def __init__(self, tokens):
+    def __init__(self, tokens, ans=None):
         self.tokens = tokens
+        self.ans = ans
         self.index = 0
 
     def peek(self):
@@ -110,13 +113,38 @@ class Parser:
             if self.take() != ")":
                 raise CalcError("не хватает закрывающей скобки")
             return value
+        if token == "ans":
+            if self.ans is None:
+                raise CalcError("нет предыдущего результата")
+            return self.ans
         if not token[0].isdigit():
             raise CalcError(f"недопустимый символ «{token}»")
         return checked(float(token.replace(",", ".")))
 
 
-def calculate(text):
+def calculate(text, ans=None):
+    if len(text) > MAX_LENGTH:
+        raise CalcError("слишком длинное выражение")
     tokens = split(text)
     if not tokens:
         raise CalcError("пустое выражение")
-    return Parser(tokens).parse()
+    return Parser(tokens, ans).parse()
+
+
+class Calculator:
+    def __init__(self, limit=20):
+        self._history = deque(maxlen=limit)
+
+    @property
+    def history(self):
+        return list(self._history)
+
+    def calculate(self, text):
+        text = text.strip()
+        ans = self._history[-1][1] if self._history else None
+        result = calculate(text, ans)
+        self._history.append((text, result))
+        return result
+
+    def clear(self):
+        self._history.clear()
